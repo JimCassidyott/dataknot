@@ -1,0 +1,13 @@
+{
+  "data_store_name": "test.db",
+  "table_name": "test_table",
+  "datalog_script": "?[id, name, value] <- $data\n:replace {table_name} { id: String, name: String, value: Int }",
+  "data": [
+    ["1", "turmeric", 100],
+    ["2", "broccoli", 200],
+    ["3", "garlic", 150]
+  ],
+  "create_table_script": "?[id, name, value] <- []\n:create {table_name} {\n    id: String,\n    name: String,\n    value: Int\n}",
+  "query_script": "?[id, name, value] := *{table_name}{id, name, value}",
+  "filter_script": "?[id, name, value] := *{table_name}{id, name, value}, id = $search_id"
+} 

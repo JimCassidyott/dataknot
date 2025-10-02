@@ -1,0 +1,35 @@
+File:
+  - label: "New Window"
+    function: "newWindow"
+  - label: "Open..."
+    function: "openFile"
+  - label: "Save"
+    function: "saveFile"
+  - label: "Exit"
+    function: "exitApp"
+
+Edit:
+  - label: "Undo"
+    function: "undo"
+  - label: "Redo"
+    function: "redo"
+  - label: "Cut"
+    function: "cut"
+  - label: "Copy"
+    function: "copy"
+  - label: "Paste"
+    function: "paste"
+
+View:
+  - label: "Reload"
+    function: "reload"
+  - label: "Toggle Full Screen"
+    function: "toggleFullScreen"
+  - label: "Developer Tools"
+    function: "toggleDevTools"
+
+Help:
+  - label: "Documentation"
+    link: "https://example.com/docs"
+  - label: "About"
+    function: "showAbout"

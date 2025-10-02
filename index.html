@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://httpbin.org;">
+    <title>Recipe Navigator</title>
+    <!-- Alpine.js from local node_modules -->
+    <script defer src="node_modules/alpinejs/dist/cdn.min.js"></script>
+    <!-- HTMx from local node_modules -->
+    <script src="node_modules/htmx.org/dist/htmx.min.js"></script>
+    <link rel="stylesheet" href="node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+    <style>
+        :root {
+            --bronze: #cd7f32;
+            --bronze-light: #e6a96b;
+            --gunmetal: #2a3439;
+            --gunmetal-light: #3b444b;
+            --black: #111112;
+            --white: #fff;
+            --shadow: rgba(0,0,0,0.5);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, var(--gunmetal) 60%, var(--black) 100%);
+            color: var(--white);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            width: 100%;
+            height: 100vh;
+        }
+        #app {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            position: relative;
+        }
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: linear-gradient(120deg, var(--gunmetal-light) 80%, var(--black) 100%);
+            border-right: 2px solid var(--bronze);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-shadow: 4px 0 16px var(--shadow);
+        }
+        .sidebar-header {
+            padding: 0;
+            border-bottom: 2px solid var(--bronze);
+            box-shadow: 0 2px 8px var(--shadow);
+            background: #fdf6e3;
+        }
+        .sidebar-header .logo {
+            border-color: var(--bronze);
+            box-shadow: none;
+            margin: 0 auto 16px 0;
+        }
+        .new-chat-btn {
+            width: 100%;
+            padding: 10px 12px;
+            margin: 6px 0;
+            border-radius: 8px;
+            color: var(--white);
+            font-size: 14px;
+            cursor: pointer;
+            background: #4a5a6b;
+            border: 1.5px solid transparent;
+            box-shadow: 0 1px 4px var(--shadow), 0 1px 0 var(--white) inset;
+            transition: background 0.2s, border 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .new-chat-btn:hover {
+            border: 1.5px solid var(--bronze);
+            background: var(--bronze);
+            color: var(--black);
+        }
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .conversation-item {
+            padding: 10px 12px;
+            margin: 6px 0;
+            border-radius: 8px;
+            color: var(--white);
+            font-size: 14px;
+            cursor: pointer;
+            background: var(--gunmetal-light);
+            border: 1.5px solid transparent;
+            box-shadow: 0 1px 4px var(--shadow), 0 1px 0 var(--white) inset;
+            transition: background 0.2s, border 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            position: relative;
+            padding-right: 36px;
+        }
+        .conversation-item:hover {
+            border: 1.5px solid var(--bronze);
+            background: var(--bronze);
+            color: var(--black);
+        }
+        .conversation-item.active {
+            border: 2px solid var(--bronze);
+            background: var(--bronze-light);
+            color: var(--black);
+            font-weight: bold;
+        }
+        .delete-btn {
+            background: var(--gunmetal-light);
+            border: 1px solid var(--bronze);
+            color: var(--white);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+        }
+        .conversation-item:hover .delete-btn {
+            opacity: 1;
+        }
+        /* Main Chat Area */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, var(--gunmetal) 80%, var(--black) 100%);
+            height: 100vh;
+            box-shadow: -4px 0 16px var(--shadow);
+            padding: 0 6px;
+            border-radius: 8px;
+        }
+        .chat-header {
+            padding: 16px 24px;
+            border-bottom: 2px solid var(--bronze);
+            background: var(--gunmetal-light);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+        .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--bronze-light);
+            position: relative;
+        }
+        .model-dropdown {
+            background: var(--black);
+            border: 1px solid var(--bronze);
+            border-radius: 4px;
+            color: var(--white);
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .model-dropdown:hover {
+            border-color: var(--bronze-light);
+        }
+        .model-dropdown:focus {
+            outline: none;
+            border-color: var(--bronze-light);
+        }
+        
+        .settings-button {
+            background: var(--black);
+            border: 1px solid var(--bronze);
+            color: var(--white);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 8px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        
+        .settings-button:hover {
+            border-color: var(--bronze-light);
+        }
+        
+        .claude-settings {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            z-index: 1000;
+            margin-top: 8px;
+        }
+        
+        .settings-panel {
+            background: var(--black);
+            border: 1px solid var(--bronze);
+            border-radius: 8px;
+            padding: 16px;
+            min-width: 300px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .settings-panel h4 {
+            margin: 0 0 12px 0;
+            color: var(--white);
+            font-size: 14px;
+        }
+        
+        .api-key-section {
+            margin-bottom: 12px;
+        }
+        
+        .api-key-section label {
+            display: block;
+            color: var(--white);
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        
+        .api-key-input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .api-key-input {
+            flex: 1;
+            background: var(--black);
+            border: 1px solid var(--bronze);
+            color: var(--white);
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .api-key-input::placeholder {
+            color: var(--bronze-light);
+        }
+        
+        .save-key-button {
+            background: var(--bronze);
+            border: none;
+            color: var(--white);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .save-key-button:hover:not(:disabled) {
+            background: var(--bronze-light);
+        }
+        
+        .save-key-button:disabled {
+            background: rgba(255, 255, 255, 0.2);
+            cursor: not-allowed;
+        }
+        
+        .api-key-status {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #4ade80;
+        }
+        
+        .api-key-status.error {
+            color: #f87171;
+        }
+        
+        .api-key-help {
+            margin: 0;
+            font-size: 11px;
+            color: var(--bronze-light);
+        }
+        
+        .api-key-help a {
+            color: var(--bronze-light);
+            text-decoration: none;
+        }
+        
+        .api-key-help a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+        
+        .modal-content {
+            background: var(--black);
+            border: 2px solid var(--bronze);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid var(--bronze);
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: var(--white);
+            font-size: 18px;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--bronze-light);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-close:hover {
+            color: var(--white);
+        }
+        
+        .modal-body {
+            padding: 20px 24px;
+        }
+        
+        .modal-body p {
+            margin: 0 0 16px 0;
+            color: var(--bronze-light);
+            font-size: 14px;
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 16px 24px 20px;
+            border-top: 1px solid var(--bronze);
+        }
+        
+        .btn-cancel, .btn-save {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid var(--bronze);
+            transition: all 0.2s;
+        }
+        
+        .btn-cancel {
+            background: transparent;
+            color: var(--bronze-light);
+        }
+        
+        .btn-cancel:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--white);
+        }
+        
+        .btn-save {
+            background: var(--bronze);
+            color: var(--white);
+        }
+        
+        .btn-save:hover {
+            background: var(--bronze-light);
+        }
+        
+        .btn-save:disabled {
+            background: rgba(255, 255, 255, 0.2);
+            cursor: not-allowed;
+        }
+        .chat-title {
+            color: var(--bronze-light);
+            font-size: 18px;
+            font-weight: 700;
+            text-shadow: 1px 1px 2px var(--black), 0 1px 0 var(--white);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo {
+            width: 269px;
+            height: 269px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: none;
+            box-shadow: 0 2px 8px var(--shadow), 0 1px 0 var(--white) inset;
+            display: block;
+            margin: 0 auto 16px 0;
+        }
+        .close-button {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(145deg, var(--bronze-light) 60%, var(--bronze) 100%);
+            border: 2px solid var(--bronze);
+            border-radius: 8px;
+            color: var(--black);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px var(--shadow), 0 1px 0 var(--white) inset;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .close-button:hover {
+            background: linear-gradient(145deg, var(--bronze) 60%, var(--bronze-light) 100%);
+            box-shadow: 0 4px 16px var(--shadow), 0 2px 0 var(--white) inset;
+        }
+        /* Messages Area */
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+        .message {
+            padding: 20px 24px;
+            border-bottom: 1.5px solid var(--bronze);
+            box-shadow: 0 2px 8px var(--shadow) inset;
+        }
+        .message.user {
+            background: var(--gunmetal);
+        }
+        .message.assistant {
+            background: #fdf6e3;
+            color: var(--black);
+        }
+        .message-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 16px;
+        }
+        .avatar {
+            width: 120px;
+            height: 34px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px var(--shadow), 0 1px 0 var(--white) inset;
+        }
+        .avatar.user {
+            background: var(--bronze);
+            color: var(--black);
+            border: 2px solid var(--bronze);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .avatar.assistant {
+            background: var(--white);
+            color: var(--bronze);
+            border: 2px solid var(--bronze);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .message-text-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+        
+        .message-text {
+            color: inherit;
+            font-size: 20px;
+            line-height: 1.6;
+            flex: 1;
+            text-shadow: 0 1px 0 var(--black), 0 1px 0 var(--white) inset;
+            padding: 0 2%;
+        }
+        
+        /* Markdown styling for assistant messages */
+        .message-text h1, .message-text h2, .message-text h3, .message-text h4, .message-text h5, .message-text h6 {
+            margin: 16px 0 8px 0;
+            font-weight: bold;
+            color: var(--bronze-light);
+        }
+        
+        .message-text h1 { font-size: 28px; }
+        .message-text h2 { font-size: 24px; }
+        .message-text h3 { font-size: 22px; }
+        .message-text h4, .message-text h5, .message-text h6 { font-size: 20px; }
+        
+        .message-text p {
+            margin: 8px 0;
+        }
+        
+        .message-text ul, .message-text ol {
+            margin: 8px 0;
+            padding-left: 24px;
+        }
+        
+        .message-text li {
+            margin: 4px 0;
+        }
+        
+        .message-text strong, .message-text b {
+            font-weight: bold;
+            color: var(--bronze-light);
+        }
+        
+        .message-text em, .message-text i {
+            font-style: italic;
+        }
+        
+        .message-text code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+            font-family: inherit;
+            font-size: inherit;
+            font-weight: bold;
+            border: none;
+        }
+        
+        /* Code blocks (pre elements) keep the dark background */
+        .message-text pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+            border: none;
+            font-weight: normal;
+        }
+        
+        .message-text pre {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--bronze);
+            overflow-x: auto;
+            margin: 12px 0;
+            font-family: 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .message-text blockquote {
+            border-left: 4px solid var(--bronze);
+            padding-left: 16px;
+            margin: 12px 0;
+            font-style: italic;
+            color: var(--bronze-light);
+        }
+        
+        /* Thinking animation styles */
+        .thinking-animation {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .thinking-dots {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .thinking-dots .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--bronze);
+            border-radius: 50%;
+            animation: thinking 1.4s infinite ease-in-out;
+        }
+        
+        .thinking-dots .dot:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+        
+        .thinking-dots .dot:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+        
+        .thinking-dots .dot:nth-child(3) {
+            animation-delay: 0s;
+        }
+        
+        @keyframes thinking {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+        }
+        
+        /* Action buttons for assistant messages */
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: 16px;
+            flex-shrink: 0;
+        }
+        
+        .action-btn {
+            background: var(--gunmetal-light);
+            border: 1px solid var(--bronze);
+            color: var(--white);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: box-shadow 0.2s, border 0.2s, transform 0.2s;
+        }
+        
+        .action-btn:hover {
+            box-shadow: 0 4px 8px var(--shadow), 0 2px 4px rgba(255, 255, 255, 0.1) inset;
+            border-color: var(--bronze-light);
+            transform: translateY(-1px);
+        }
+        
+        .action-btn.delete:hover {
+            box-shadow: 0 4px 8px rgba(204, 0, 0, 0.3), 0 2px 4px rgba(255, 255, 255, 0.1) inset;
+            border-color: #ff4444;
+            transform: translateY(-1px);
+        }
+        /* Input Area */
+        .input-container {
+            padding: 24px;
+            background: var(--gunmetal-light);
+            border-top: 2px solid var(--bronze);
+            box-shadow: 0 -2px 8px var(--shadow);
+        }
+        .input-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .message-input {
+            width: 100%;
+            padding: 12px 48px 12px 16px;
+            background: var(--black);
+            border: 2px solid var(--bronze);
+            border-radius: 8px;
+            color: var(--white);
+            font-size: 16px;
+            resize: none;
+            min-height: 44px;
+            max-height: 200px;
+            outline: none;
+            font-family: inherit;
+            box-shadow: 0 2px 8px var(--shadow), 0 1px 0 var(--white) inset;
+            transition: border 0.2s, box-shadow 0.2s;
+        }
+        .message-input:focus {
+            border-color: var(--bronze-light);
+            box-shadow: 0 4px 16px var(--shadow), 0 2px 0 var(--white) inset;
+        }
+        
+        .message-input:disabled {
+            background: var(--gunmetal);
+            color: var(--gunmetal-light);
+            cursor: not-allowed;
+            border-color: var(--gunmetal-light);
+        }
+        .send-button {
+            position: absolute;
+            right: 16px;
+            bottom: 12px;
+            width: 32px;
+            height: 32px;
+            background: #ff4444;
+            border: 2px solid #cc0000;
+            border-radius: 8px;
+            color: var(--white);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px var(--shadow), 0 1px 0 var(--white) inset;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .send-button:hover {
+            background: #cc0000;
+            box-shadow: 0 4px 16px var(--shadow), 0 2px 0 var(--white) inset;
+        }
+        .send-button:disabled {
+            background: var(--gunmetal-light);
+            color: var(--white);
+            border: 2px solid var(--gunmetal);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--gunmetal);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--bronze);
+            border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--bronze-light);
+        }
+        .highlighted-word {
+            background: var(--bronze-light);
+            color: var(--black);
+            border-radius: 4px;
+            padding: 0 2px;
+            transition: background 0.1s, color 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" x-data="chatApp()">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <img src="assets/logo.jpeg" alt="Logo" class="logo">
+            </div>
+            <div class="sidebar-content">
+                <button class="new-chat-btn" @click="startNewChat()">
+                    <span>+</span>
+                    <span>New chat</span>
+                </button>
+                <template x-for="(conversation, index) in conversations" :key="index">
+                    <div class="conversation-item" 
+                         :class="{ 'active': currentConversationIndex === index }"
+                         @click="selectConversation(index)">
+                        <span x-text="conversation.title || 'Untitled'"></span>
+                        <button class="delete-btn" @click.stop="deleteConversation(index)" title="Delete conversation">×</button>
+                    </div>
+                </template>
+            </div>
+        </div>
+        <!-- Main Chat Area -->
+        <div class="chat-container">
+            <div class="chat-header">
+                <div class="chat-title">
+                    <span x-text="currentConversation?.summary || currentConversation?.title || 'Press New Chat'"></span>
+                </div>
+                <div class="model-selector">
+                    <span>Model:</span>
+                    <select class="model-dropdown" x-model="selectedModel" @change="onModelChange()">
+                        <option value="mistral:latest">Mistral (4.4GB)</option>
+                        <option value="llama3.1:8b">Llama 3.1 8B (4.9GB)</option>
+                        <option value="qwen2.5:14b">Qwen 2.5 14B (9.0GB)</option>
+                        <option value="gemma3:latest">Gemma 3 (3.3GB)</option>
+                        <option value="koesn/llama3-openbiollm-8b:latest">OpenBioLLM 8B (4.9GB)</option>
+                        <option value="jsk/bio-mistral:latest">BioMistral 7B (4.1GB)</option>
+                        <option value="dolphin-mistral:7b">Dolphin-Mistral 7B (4.1GB)</option>
+                        <option value="codellama:latest">Code Llama (3.8GB)</option>
+                        <option value="llama2:latest">Llama2 (3.8GB)</option>
+                        <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (Cloud)</option>
+                    </select>
+                    <button class="settings-button" onclick="configureClaudeApiKey()" 
+                            x-show="selectedModel === 'claude-3-5-sonnet'" 
+                            title="Configure Claude API Key">
+                        ⚙️
+                    </button>
+                </div>
+                
+                <!-- Claude API Key Modal -->
+                <div id="claude-modal" class="modal-overlay" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Configure Claude API Key</h3>
+                            <button class="modal-close" onclick="closeClaudeModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Enter your Claude API key to use Claude 3.5 Sonnet:</p>
+                            <div class="api-key-input-group">
+                                <input type="password" 
+                                       id="claude-api-key-input" 
+                                       placeholder="Enter your Claude API key (sk-ant-...)"
+                                       class="api-key-input">
+                            </div>
+                            <div class="api-key-help">
+                                Get your API key from <a href="https://console.anthropic.com/" target="_blank" onclick="window.open('https://console.anthropic.com/', '_blank')">Anthropic Console</a>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-cancel" onclick="closeClaudeModal()">Cancel</button>
+                            <button class="btn-save" onclick="saveClaudeApiKey()">Save API Key</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Messages -->
+            <div class="messages-container">
+                <template x-for="message in (currentConversation?.messages || [])" :key="message.id">
+                    <div class="message" :class="message.role">
+                        <div class="message-content">
+                            <div class="avatar" :class="message.role">
+                                <span x-text="message.role === 'user' ? 'User' : 'DataKnot'"></span>
+                            </div>
+                            <div class="message-text-container">
+                                <div class="message-text" x-show="!message.isThinking"
+                                     x-html="message.role === 'assistant' ? (isSpeaking && speakingMessageId === message.id && speakingText ? highlightedMessage(message) : (window.marked ? window.marked.parse(message.content) : simpleMarkdownParser(message.content))) : message.content.replace(/\n/g, '<br>')"
+                                     @click="onMessageTextClick($event, message)"
+                                     x-init="console.log('x-init called for message:', message.id)"></div>
+                            <div class="message-text thinking-animation" x-show="message.isThinking">
+                                <span x-text="message.content"></span>
+                                <span class="thinking-dots">
+                                    <span class="dot"></span>
+                                    <span class="dot"></span>
+                                    <span class="dot"></span>
+                                </span>
+                            </div>
+                                <!-- Action buttons for all messages -->
+                                <div class="message-actions">
+                                    <button class="action-btn" @click="saveMessage(message)" title="Save message">
+                                        <i class="fas fa-floppy-disk"></i>
+                                    </button>
+                                    <button class="action-btn" @click="shareMessage(message)" title="Share message">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                    <button class="action-btn" x-show="message.role === 'assistant'" @click="speakMessage(message)" title="Read message aloud">
+                                        <i :class="isSpeaking ? 'fas fa-volume-off' : 'fas fa-volume-up'"></i>
+                                    </button>
+                                    <button class="action-btn delete" @click="deleteMessage(message)" title="Delete message">
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <!-- Input Area -->
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        class="message-input" 
+                        placeholder="Click 'New Chat' to start a conversation..."
+                        x-model="newMessage"
+                        @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); sendMessage(); }"
+                        @input="autoResize($event.target)"
+                        @paste="handlePaste($event)"
+                        :disabled="currentConversationIndex < 0"
+                        rows="1">
+                    </textarea>
+                    <button 
+                        class="send-button" 
+                        @click="sendMessage()"
+                        :disabled="!newMessage.trim() || currentConversationIndex < 0">
+                        <span>↑</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="renderer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    
+    <script>
+        // Function to open Claude API key configuration modal
+        async function configureClaudeApiKey() {
+            try {
+                // Check if API key already exists
+                const hasKey = await window.electronAPI?.invoke('has-claude-api-key') || false;
+                
+                if (hasKey) {
+                    const update = confirm('Claude API key is already configured. Do you want to update it?');
+                    if (!update) return;
+                }
+                
+                // Show the modal
+                const modal = document.getElementById('claude-modal');
+                modal.style.display = 'flex';
+                
+                // Focus on the input field
+                const input = document.getElementById('claude-api-key-input');
+                input.focus();
+                
+            } catch (error) {
+                console.error('Error opening Claude configuration:', error);
+                alert('Error opening configuration: ' + error.message);
+            }
+        }
+        
+        // Function to close the modal
+        function closeClaudeModal() {
+            const modal = document.getElementById('claude-modal');
+            modal.style.display = 'none';
+            
+            // Clear the input
+            const input = document.getElementById('claude-api-key-input');
+            input.value = '';
+        }
+        
+        // Function to save the Claude API key
+        async function saveClaudeApiKey() {
+            try {
+                const input = document.getElementById('claude-api-key-input');
+                const apiKey = input.value.trim();
+                
+                if (!apiKey) {
+                    alert('Please enter your Claude API key');
+                    return;
+                }
+                
+                // Save the API key
+                await window.electronAPI?.invoke('set-claude-api-key', apiKey);
+                
+                // Close the modal
+                closeClaudeModal();
+                
+                // Show success message
+                alert('Claude API key saved successfully!');
+                
+            } catch (error) {
+                console.error('Error saving Claude API key:', error);
+                alert('Error saving API key: ' + error.message);
+            }
+        }
+        
+        // Close modal when clicking outside of it
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('claude-modal');
+            if (event.target === modal) {
+                closeClaudeModal();
+            }
+        });
+        
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const modal = document.getElementById('claude-modal');
+                if (modal.style.display === 'flex') {
+                    closeClaudeModal();
+                }
+            }
+        });
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-css.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-clike.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js"></script>
+    <script>
+        // Configure marked to use Prism for syntax highlighting
+        if (window.marked) {
+            marked.setOptions({
+                highlight: function(code, lang) {
+                    if (window.Prism && lang) {
+                        try {
+                            return Prism.highlight(code, Prism.languages[lang], lang);
+                        } catch (e) {
+                            console.log('Prism highlighting failed:', e);
+                        }
+                    }
+                    return code;
+                }
+            });
+        }
+    </script>
+    <script>
+
+        
+        /**
+         * Recipe Navigator - Alpine.js Application
+         * 
+         * This function defines the main application state and behavior using Alpine.js.
+         * It manages the chat interface, conversation handling, and user interactions.
+         * 
+         * Key Features:
+         * - Multi-conversation management
+         * - Real-time message handling
+         * - Auto-scrolling and UI updates
+         * - Textarea auto-resizing
+         * - Paste handling with line break preservation
+         */
+        // Simple markdown parser fallback
+        function simpleMarkdownParser(text) {
+            console.log('Parsing markdown:', text.substring(0, 100) + '...');
+            
+            let result = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Handle code blocks with language specification
+            result = result.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+                const language = lang || 'text';
+                console.log('Found code block with language:', language);
+                return `<pre><code class="language-${language}">${code.trim()}</code></pre>`;
+            });
+            
+            result = result
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
+            
+            console.log('Parsed result:', result.substring(0, 200) + '...');
+            return result;
+        }
+        
+
+        
+        function chatApp() {
+            console.log('chatApp function called');
+            
+            // Initialize Prism.js for syntax highlighting
+            if (window.Prism) {
+                window.Prism.manual = true;
+            }
+            
+            return {
+                // Chat manager for business logic
+                chatManager: null,
+                currentConversationBuffer: [], // In-memory buffer for current conversation context
+                
+                /**
+                 * Generate a smart conversation title from the first message
+                 */
+                generateConversationTitle(message) {
+                    // Clean the message
+                    let cleanMessage = message
+                        .replace(/[^\w\s]/g, ' ') // Remove special characters
+                        .replace(/\s+/g, ' ') // Normalize whitespace
+                        .trim()
+                        .toLowerCase();
+                    
+                    // Remove common filler words
+                    const fillerWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'can', 'may', 'might', 'must', 'shall', 'how', 'what', 'when', 'where', 'why', 'who', 'which', 'that', 'this', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'mine', 'yours', 'his', 'hers', 'ours', 'theirs'];
+                    
+                    // Split into words and filter out fillers and short words
+                    const words = cleanMessage.split(' ')
+                        .filter(word => word.length > 2 && !fillerWords.includes(word));
+                    
+                    if (words.length === 0) {
+                        return 'New Chat';
+                    }
+                    
+                    // Take up to 5 words, but prefer fewer if they're descriptive
+                    let keyWords = words.slice(0, 5);
+                    
+                    // If we have more than 3 words, try to find a more concise combination
+                    if (keyWords.length > 3) {
+                        // Look for the most meaningful words (longer words tend to be more specific)
+                        const meaningfulWords = keyWords
+                            .sort((a, b) => b.length - a.length) // Sort by length (longest first)
+                            .slice(0, 3); // Take the 3 longest/most meaningful
+                        
+                        // If the meaningful words are still too generic, try the first few
+                        const firstWords = keyWords.slice(0, 3);
+                        
+                        // Choose the shorter option if it's still descriptive
+                        keyWords = meaningfulWords.length > 0 ? meaningfulWords : firstWords;
+                    }
+                    
+                    // Capitalize and join
+                    const title = keyWords.map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                    ).join(' ');
+                    
+                    // Limit to reasonable length (prefer shorter, more specific titles)
+                    return title.length > 20 ? title.substring(0, 20) + '...' : title;
+                },
+                
+                /**
+                 * Apply syntax highlighting to code blocks in a message
+                 */
+                highlightCodeBlocks(element) {
+                    console.log('=== HIGHLIGHTING FUNCTION CALLED ===');
+                    console.log('Element:', element);
+                    
+                    if (!element) {
+                        console.log('No element provided');
+                        return;
+                    }
+                    
+                    console.log('Element HTML:', element.innerHTML.substring(0, 300) + '...');
+                    
+                    if (window.Prism) {
+                        console.log('Prism is available');
+                        // Try to highlight everything in the element
+                        window.Prism.highlightAllUnder(element);
+                        console.log('Called Prism.highlightAllUnder');
+                    } else {
+                        console.log('Prism is NOT available');
+                    }
+                    
+                    // Also try to find code blocks manually
+                    const codeBlocks = element.querySelectorAll('pre code');
+                    console.log('Found code blocks:', codeBlocks.length);
+                    
+                    codeBlocks.forEach((block, index) => {
+                        console.log(`Code block ${index}:`, block.outerHTML);
+                    });
+                    
+                    console.log('=== END DEBUG ===');
+                },
+                
+                /**
+                 * Generate a longer description for the chat header from the first message
+                 */
+                generateConversationSummary(message) {
+                    // Clean the message
+                    let cleanMessage = message
+                        .replace(/[^\w\s]/g, ' ') // Remove special characters
+                        .replace(/\s+/g, ' ') // Normalize whitespace
+                        .trim()
+                        .toLowerCase();
+                    
+                    // Remove common filler words
+                    const fillerWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'can', 'may', 'might', 'must', 'shall', 'how', 'what', 'when', 'where', 'why', 'who', 'which', 'that', 'this', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'mine', 'yours', 'his', 'hers', 'ours', 'theirs'];
+                    
+                    // Split into words and filter out fillers and short words
+                    const words = cleanMessage.split(' ')
+                        .filter(word => word.length > 2 && !fillerWords.includes(word));
+                    
+                    if (words.length === 0) {
+                        return 'New Conversation';
+                    }
+                    
+                    // Take up to 8 words for the summary
+                    let keyWords = words.slice(0, 8);
+                    
+                    // Capitalize and join
+                    const summary = keyWords.map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                    ).join(' ');
+                    
+                    // Limit to reasonable length
+                    return summary.length > 50 ? summary.substring(0, 50) + '...' : summary;
+                },
+                
+                /**
+                 * Initialize chat history directory and load saved conversations
+                 */
+                initChatHistory() {
+                    try {
+                        // Initialize chat manager
+                        const ChatManager = require('./chat-manager.js');
+                        this.chatManager = new ChatManager();
+                        
+                        // Load saved conversations
+                        this.conversations = this.chatManager.loadChatHistory();
+                        
+                        // Set current conversation to the most recent one if any exist
+                        if (this.conversations.length > 0) {
+                            this.currentConversationIndex = 0;
+                        }
+                    } catch (error) {
+                        console.error('Error initializing chat history:', error);
+                        // Fallback: initialize with empty conversations
+                        this.conversations = [];
+                        this.currentConversationIndex = -1;
+                    }
+                },
+                
+                /**
+                 * Save all conversations to chat history folders
+                 */
+                saveChatHistory() {
+                    try {
+                        if (this.chatManager) {
+                            this.chatManager.saveChatHistory(this.conversations);
+                        }
+                    } catch (error) {
+                        console.error('Error saving chat history:', error);
+                    }
+                },
+                
+                /**
+                 * Load saved conversations from chat history folders
+                 */
+
+                
+
+                
+
+                
+                /**
+                 * Save an artifact to a conversation folder
+                 */
+                saveConversationArtifact(conversationId, artifactName, data, type = 'json') {
+                    if (this.chatManager) {
+                        this.chatManager.saveConversationArtifact(conversationId, artifactName, data, type);
+                    }
+                },
+                
+                /**
+                 * Load an artifact from a conversation folder
+                 */
+                loadConversationArtifact(conversationId, artifactName, type = 'json') {
+                    if (this.chatManager) {
+                        return this.chatManager.loadConversationArtifact(conversationId, artifactName, type);
+                    }
+                    return null;
+                },
+                
+                /**
+                 * Model Selection Methods
+                 * 
+                 * These methods handle model selection and persistence.
+                 */
+                
+                /**
+                 * Load the selected model from localStorage
+                 */
+                loadSelectedModel() {
+                    try {
+                        const savedModel = localStorage.getItem('recipeNavigatorSelectedModel');
+                        if (savedModel) {
+                            this.selectedModel = savedModel;
+                            console.log('Loaded saved model:', savedModel);
+                        }
+                    } catch (error) {
+                        console.error('Error loading selected model:', error);
+                    }
+                },
+                
+                /**
+                 * Save the selected model to localStorage
+                 */
+                saveSelectedModel() {
+                    try {
+                        localStorage.setItem('recipeNavigatorSelectedModel', this.selectedModel);
+                        console.log('Saved model selection:', this.selectedModel);
+                    } catch (error) {
+                        console.error('Error saving selected model:', error);
+                    }
+                },
+                
+                /**
+                 * Handle model selection change
+                 */
+                onModelChange() {
+                    this.saveSelectedModel();
+                    console.log('Model changed to:', this.selectedModel);
+                    
+                    // Check Claude API key when switching to Claude
+                    if (this.selectedModel === 'claude-3-5-sonnet') {
+                        this.checkClaudeApiKey();
+                    } else {
+                        this.showClaudeSettings = false;
+                    }
+                },
+                
+                /**
+                 * Check if Claude API key is configured
+                 */
+                async checkClaudeApiKey() {
+                    try {
+                        this.hasClaudeApiKey = await window.electronAPI?.invoke('has-claude-api-key') || false;
+                    } catch (error) {
+                        console.error('Error checking Claude API key:', error);
+                        this.hasClaudeApiKey = false;
+                    }
+                },
+                
+                /**
+                 * Save Claude API key
+                 */
+                async saveClaudeApiKey() {
+                    if (!this.claudeApiKey.trim()) return;
+                    
+                    try {
+                        await window.electronAPI?.invoke('set-claude-api-key', this.claudeApiKey.trim());
+                        this.hasClaudeApiKey = true;
+                        this.showClaudeSettings = false;
+                        console.log('Claude API key saved successfully');
+                    } catch (error) {
+                        console.error('Error saving Claude API key:', error);
+                        alert('Error saving Claude API key: ' + error.message);
+                    }
+                },
+                
+                /**
+                 * Get list of artifacts for a conversation
+                 */
+                getConversationArtifacts(conversationId) {
+                    if (this.chatManager) {
+                        return this.chatManager.getConversationArtifacts(conversationId);
+                    }
+                    return [];
+                },
+                
+
+                
+                /**
+                 * Reset the AI's memory by sending a special reset message
+                 */
+                async resetAIMemory(model = 'mistral:latest') {
+                    if (this.chatManager) {
+                        await this.chatManager.resetAIMemory(model);
+                    }
+                },
+                
+                /**
+                 * Handle DataKnot commands
+                 */
+                handleDataKnotCommand(messageContent) {
+                    const trimmedMessage = messageContent.trim().toLowerCase();
+                    
+                    // Check if message starts with dataknot: (case-insensitive)
+                    if (trimmedMessage.startsWith('dataknot:')) {
+                        const command = trimmedMessage.substring(9).trim(); // Remove 'dataknot:' prefix
+                        
+                        // Handle start recipe command
+                        if (command === 'start recipe') {
+                            this.handleStartRecipeCommand();
+                            return true; // Command was handled
+                        }
+                        
+                        // Unknown command
+                        this.handleUnknownDataKnotCommand(command);
+                        return true; // Command was handled
+                    }
+                    
+                    return false; // Not a dataknot command
+                },
+                
+                /**
+                 * Handle the start recipe command
+                 */
+                async handleStartRecipeCommand() {
+                    // Remove the thinking message
+                    const thinkingMessage = this.currentConversation.messages.find(msg => msg.isThinking);
+                    if (thinkingMessage) {
+                        const messageIndex = this.currentConversation.messages.indexOf(thinkingMessage);
+                        if (messageIndex > -1) {
+                            this.currentConversation.messages.splice(messageIndex, 1);
+                        }
+                    }
+                    
+                    let acknowledgmentContent = '**Model: DataKnot Command System**\n\n✅ **Acknowledged**\n\nCommand `dataknot:start recipe` received and processed.';
+                    
+                    // Add acknowledgment response first
+                    const acknowledgmentMessage = {
+                        id: Date.now() + 1,
+                        role: 'assistant',
+                        content: acknowledgmentContent,
+                        timestamp: new Date().toISOString()
+                    };
+                    
+                    this.currentConversation.messages.push(acknowledgmentMessage);
+                    
+                    // Auto-scroll to show the response
+                    this.$nextTick(() => {
+                        const messagesContainer = document.querySelector('.messages-container');
+                        if (messagesContainer) {
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        }
+                    });
+                    
+                    // Update the message content with the acknowledgment
+                    acknowledgmentContent += '\n\n📁 **Project Type Updated**\n\nThe `projectType` will be changed from "chat" to "recipe" when the conversation is saved.';
+                    acknowledgmentMessage.content = acknowledgmentContent;
+                    
+                    // Save the conversation (this is essential for the app to work)
+                    this.saveChatHistory();
+                },
+                
+                
+                /**
+                 * Handle unknown DataKnot commands
+                 */
+                handleUnknownDataKnotCommand(command) {
+                    // Remove the thinking message
+                    const thinkingMessage = this.currentConversation.messages.find(msg => msg.isThinking);
+                    if (thinkingMessage) {
+                        const messageIndex = this.currentConversation.messages.indexOf(thinkingMessage);
+                        if (messageIndex > -1) {
+                            this.currentConversation.messages.splice(messageIndex, 1);
+                        }
+                    }
+                    
+                    // Add error response
+                    const errorMessage = {
+                        id: Date.now() + 1,
+                        role: 'assistant',
+                        content: `**Model: DataKnot Command System**\n\n❌ **Unknown Command**\n\nCommand \`dataknot:${command}\` is not recognized.\n\nAvailable commands:\n- \`dataknot:start recipe\``,
+                        timestamp: new Date().toISOString()
+                    };
+                    
+                    this.currentConversation.messages.push(errorMessage);
+                    
+                    // Auto-scroll to show the response
+                    this.$nextTick(() => {
+                        const messagesContainer = document.querySelector('.messages-container');
+                        if (messagesContainer) {
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        }
+                    });
+                    
+                    // Save the conversation
+                    this.saveChatHistory();
+                },
+                
+                /**
+                 * Reload conversation buffer from file
+                 */
+                reloadConversationBuffer() {
+                    if (this.currentConversation && this.currentConversation.messages.length > 0) {
+                        this.currentConversationBuffer = [...this.currentConversation.messages];
+                        console.log('Reloaded conversation buffer with', this.currentConversationBuffer.length, 'messages');
+                    } else {
+                        this.currentConversationBuffer = [];
+                        console.log('Cleared conversation buffer');
+                    }
+                },
+                
+                /**
+                 * Delete a specific conversation folder
+                 */
+                deleteChatFile(conversationId) {
+                    if (this.chatManager) {
+                        this.chatManager.deleteChatFile(conversationId);
+                    }
+                },
+                /**
+                 * Application State
+                 * 
+                 * These properties define the current state of the application:
+                 * - conversations: Array of all chat conversations
+                 * - currentConversationIndex: Index of the currently active conversation
+                 * - newMessage: Current text in the input field
+                 */
+                
+                // Sample conversation data for demonstration
+                conversations: [], // Start with no conversations by default
+                currentConversationIndex: -1, // No active conversation initially
+                newMessage: '',               // Current text in the input field
+                conversationContext: '',      // Growing context of all prompts and responses
+                isSpeaking: false,
+                speakingWordIndex: -1,
+                speakingWords: [],
+                speakingMessageId: null,
+                speakingText: '',
+                selectedModel: 'mistral:latest', // Default model selection
+                claudeApiKey: '', // Claude API key
+                hasClaudeApiKey: false, // Whether Claude API key is configured
+                showClaudeSettings: false, // Whether to show Claude settings panel
+
+
+                
+                // Initialize chat history when app starts
+                init() {
+                    this.initChatHistory();
+                    this.loadSelectedModel();
+                    console.log('Alpine.js initialized, showClaudeSettings:', this.showClaudeSettings);
+                },
+                /**
+                 * Computed Properties
+                 * 
+                 * These getter functions provide reactive access to derived state.
+                 */
+                
+                // Get the currently active conversation object
+                get currentConversation() {
+                    return this.currentConversationIndex >= 0 && this.conversations.length > 0 ? this.conversations[this.currentConversationIndex] : null;
+                },
+                /**
+                 * Conversation Management Methods
+                 * 
+                 * These methods handle creating, selecting, and deleting conversations.
+                 */
+                
+                /**
+                 * Creates a new empty conversation and makes it active
+                 * 
+                 * This method:
+                 * 1. Creates a new conversation with a unique ID and "Untitled" title
+                 * 2. Adds it to the beginning of the conversations array
+                 * 3. Sets it as the current active conversation
+                 * 4. Clears the input field
+                 */
+                async startNewChat() {
+                    try {
+                        const newConversation = {
+                            id: Date.now(),        // Use timestamp as unique ID
+                            title: 'New Chat',     // Default title for new conversations
+                            messages: []           // Start with empty message array
+                        };
+                        this.conversations.unshift(newConversation);  // Add to beginning of array
+                        this.currentConversationIndex = 0;            // Make it the active conversation
+                        this.newMessage = '';                         // Clear input field
+                        this.conversationContext = '';                // Reset context for new conversation
+                        
+                        // Clear the conversation buffer for new chat
+                        this.currentConversationBuffer = [];
+                        
+                        // Reset the AI's memory for the new chat
+                        await this.resetAIMemory(this.selectedModel);
+                        
+                        // Save chat history after creating new chat
+                        this.saveChatHistory();
+                    } catch (error) {
+                        console.error('Error in startNewChat:', error);
+                        alert('Error creating new chat: ' + error.message);
+                    }
+                },
+                                /**
+                 * Switches to a different conversation
+                 * 
+                 * @param {number} index - The index of the conversation to select
+                 */
+                async selectConversation(index) {
+                    // Stop any ongoing speech when switching chats
+                    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+                        window.speechSynthesis.cancel();
+                        this.isSpeaking = false;
+                        this.speakingWordIndex = -1;
+                        this.speakingMessageId = null;
+                        this.speakingText = '';
+                        this.speakingWords = [];
+                    }
+                    try {
+                        this.currentConversationIndex = index;  // Set as active conversation
+                        this.newMessage = '';                   // Clear input field
+                        
+                        // Reload the conversation buffer from the selected conversation
+                        this.reloadConversationBuffer();
+                        
+                        // Reset the AI's memory by sending a special reset message
+                        await this.resetAIMemory(this.selectedModel);
+                        
+                        this.updateConversationContext();       // Update context for selected conversation
+                        console.log('Switched to conversation:', index);
+                    } catch (error) {
+                        console.error('Error selecting conversation:', error);
+                        alert('Error selecting conversation: ' + error.message);
+                    }
+                },
+                /**
+                 * Deletes a conversation and handles index adjustments
+                 * 
+                 * This method includes safety checks and smart index management:
+                 * - Prevents deleting the last conversation (keeps at least one)
+                 * - Adjusts the current conversation index appropriately
+                 * - Handles edge cases when deleting the active conversation
+                 * 
+                 * @param {number} index - The index of the conversation to delete
+                 */
+                deleteConversation(index) {
+                    // Get the conversation to be deleted
+                    const conversationToDelete = this.conversations[index];
+                    
+                    // Allow deletion of any conversation
+                    this.conversations.splice(index, 1);  // Remove the conversation
+                    
+                    // Delete the corresponding file
+                    if (conversationToDelete) {
+                        this.deleteChatFile(conversationToDelete.id);
+                    }
+                    
+                    // Handle index adjustments after deletion
+                    if (this.conversations.length === 0) {
+                        // If no conversations left, create a new one
+                        this.startNewChat();
+                    } else if (this.currentConversationIndex >= this.conversations.length) {
+                        // If we deleted the current or a later conversation, select the first one
+                        this.currentConversationIndex = 0;
+                    } else if (this.currentConversationIndex > index) {
+                        // If we deleted a conversation before the current one, adjust the index down
+                        this.currentConversationIndex--;
+                    }
+                    // If we deleted a conversation after the current one, no adjustment needed
+                    
+                    // Clear the conversation buffer when deleting
+                    this.currentConversationBuffer = [];
+                    console.log('Deleted conversation and cleared buffer');
+                    
+                    // Save updated chat history
+                    this.saveChatHistory();
+                },
+                /**
+                 * Message Handling Methods
+                 * 
+                 * These methods handle sending messages, auto-scrolling, and UI updates.
+                 */
+                
+                /**
+                 * Sends a user message to the FastAPI server and displays the response
+                 * 
+                 * This is the main method for handling message sending. It:
+                 * 1. Validates the message isn't empty
+                 * 2. Creates and adds the user message
+                 * 3. Updates conversation title if it's the first message
+                 * 4. Sends the prompt to the FastAPI server
+                 * 5. Displays the AI response in the UI
+                 * 6. Handles auto-scrolling for both user and assistant messages
+                 */
+                async sendMessage() {
+                    console.log('=== SEND MESSAGE CALLED ===');
+                    // Don't send empty messages
+                    if (!this.newMessage.trim()) return;
+                    
+                    // If no conversation exists, create one
+                    if (!this.currentConversation) {
+                        this.startNewChat();
+                    }
+                    
+                    // Check if we have a valid conversation
+                    if (!this.currentConversation) {
+                        console.error('No valid conversation available');
+                        alert('Error: No valid conversation available');
+                        return;
+                    }
+                    
+                    // Create the user message object
+                    const userMessage = {
+                        id: Date.now(),                    // Unique timestamp ID
+                        role: 'user',                      // Message sender role
+                        content: this.newMessage.trim()    // Trimmed message content
+                    };
+                    
+                    // Add the user message to the current conversation
+                    this.currentConversation.messages.push(userMessage);
+                    
+                    // Note: We don't add the user message to the buffer yet
+                    // It will be added after we get the AI response
+                    
+                    // Update conversation context with the new user message
+                    this.updateConversationContext();
+                    
+                    // Print the full context to command line
+                    if (window.logToTerminal) {
+                        window.logToTerminal('=== FULL CONVERSATION CONTEXT ===');
+                        window.logToTerminal(this.conversationContext);
+                        window.logToTerminal('==================================');
+                    } else {
+                        console.log('=== FULL CONVERSATION CONTEXT ===');
+                        console.log(this.conversationContext);
+                        console.log('==================================');
+                    }
+                    
+                    // If this is the first message in the conversation, create a smart title and summary
+                    if (this.currentConversation.messages.length === 1) {
+                        this.currentConversation.title = this.generateConversationTitle(this.newMessage.trim());
+                        this.currentConversation.summary = this.generateConversationSummary(this.newMessage.trim());
+                    }
+                    
+                    // Store message content for the API request
+                    const messageContent = this.newMessage;
+                    this.newMessage = '';  // Clear the input field immediately
+                    
+                    // Check for dataknot commands before sending to API
+                    if (this.handleDataKnotCommand(messageContent)) {
+                        return; // Command was handled, don't send to API
+                    }
+                    
+                    // Auto-scroll to show the user's message
+                    this.$nextTick(() => {
+                        const messagesContainer = document.querySelector('.messages-container');
+                        if (messagesContainer) {
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        }
+                    });
+                    
+                    // Add a temporary "thinking" message with animation
+                    const thinkingMessage = {
+                        id: Date.now() + 1,
+                        role: 'assistant',
+                        content: '🤖 AI is thinking',
+                        isThinking: true
+                    };
+                    this.currentConversation.messages.push(thinkingMessage);
+                    
+                    // Auto-scroll to show the thinking message
+                    this.$nextTick(() => {
+                        const messagesContainer = document.querySelector('.messages-container');
+                        if (messagesContainer) {
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        }
+                    });
+                    
+                    try {
+                        // Get Claude API key if using Claude model
+                        let claudeApiKey = null;
+                        if (this.selectedModel === 'claude-3-5-sonnet') {
+                            claudeApiKey = await window.electronAPI?.invoke('get-claude-api-key') || null;
+                        }
+                        
+                        // Send request to FastAPI server using ChatManager with selected model
+                        const response = await this.chatManager.sendMessageToAPI(messageContent, this.currentConversationBuffer, this.selectedModel, claudeApiKey);
+                        
+                        const data = { response: response };
+                        
+                        // Remove the thinking message and add the actual response
+                        const messageIndex = this.currentConversation.messages.indexOf(thinkingMessage);
+                        if (messageIndex > -1) {
+                            this.currentConversation.messages.splice(messageIndex, 1);
+                        }
+                        
+                        // Add the actual assistant response with model info
+                        const assistantMessage = {
+                            id: Date.now() + 1,
+                            role: 'assistant',
+                            content: `**Model: ${this.selectedModel}**\n\n${data.response}`,
+                            isThinking: false
+                        };
+                        this.currentConversation.messages.push(assistantMessage);
+                        
+                        // Add the user message and assistant response to the buffer
+                        this.currentConversationBuffer.push(userMessage);
+                        this.currentConversationBuffer.push(assistantMessage);
+                        
+                        // Update conversation context with the assistant response
+                        this.updateConversationContext();
+                        
+                        // Save chat history after receiving response
+                        this.saveChatHistory();
+                        
+                        // Log the response to terminal
+                        if (window.logToTerminal) {
+                            window.logToTerminal('=== AI RESPONSE ===');
+                            window.logToTerminal(data.response);
+                            window.logToTerminal('==================');
+                        }
+                        
+                        // Auto-scroll to the beginning of the assistant's response
+                        this.$nextTick(() => {
+                            const messagesContainer = document.querySelector('.messages-container');
+                            if (messagesContainer) {
+                                // Find the last message (the assistant's response)
+                                const messages = messagesContainer.querySelectorAll('.message');
+                                if (messages.length > 0) {
+                                    const lastMessage = messages[messages.length - 1];
+                                    // Scroll to the beginning of the response for better readability
+                                    lastMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    
+                                    // Apply syntax highlighting to the new message
+                                    const messageText = lastMessage.querySelector('.message-text');
+                                    if (messageText) {
+                                        console.log('Found message text element, applying highlighting');
+                                        this.highlightCodeBlocks(messageText);
+                                    } else {
+                                        console.log('No message text element found');
+                                    }
+                                }
+                            }
+                        });
+                        
+                    } catch (error) {
+                        // Remove the thinking message and add an error message
+                        const messageIndex = this.currentConversation.messages.indexOf(thinkingMessage);
+                        if (messageIndex > -1) {
+                            this.currentConversation.messages.splice(messageIndex, 1);
+                        }
+                        
+                        const errorMessage = {
+                            id: Date.now() + 1,
+                            role: 'assistant',
+                            content: `❌ Error: ${error.message}. Please make sure the FastAPI server is running on http://127.0.0.1:8000`
+                        };
+                        this.currentConversation.messages.push(errorMessage);
+                        
+                        // Log the error to terminal
+                        if (window.logToTerminal) {
+                            window.logToTerminal('=== ERROR ===');
+                            window.logToTerminal(error.message);
+                            window.logToTerminal('============');
+                        } else {
+                            console.error('Error sending message to API:', error);
+                        }
+                        
+                        // Auto-scroll to show the error message
+                        this.$nextTick(() => {
+                            const messagesContainer = document.querySelector('.messages-container');
+                            if (messagesContainer) {
+                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                            }
+                        });
+                    }
+                },
+                /**
+                 * Context Management Methods
+                 * 
+                 * These methods handle building and maintaining the conversation context.
+                 */
+                
+                /**
+                 * Updates the conversation context with all messages in the current conversation
+                 * 
+                 * This method builds a comprehensive context string that includes all user prompts
+                 * and assistant responses in chronological order, formatted for easy reading.
+                 */
+                updateConversationContext() {
+                    if (!this.currentConversation || !this.currentConversation.messages) {
+                        this.conversationContext = '';
+                        return;
+                    }
+                    
+                    const contextParts = [];
+                    this.currentConversation.messages.forEach((message, index) => {
+                        const role = message.role === 'user' ? 'USER' : 'ASSISTANT';
+                        const content = message.content.replace(/<br>/g, '\n').replace(/<[^>]*>/g, '');
+                        contextParts.push(`${role}: ${content}`);
+                    });
+                    
+                    this.conversationContext = contextParts.join('\n\n');
+                },
+                
+                /**
+                 * UI Enhancement Methods
+                 * 
+                 * These methods handle textarea auto-resizing and paste functionality.
+                 */
+                
+                /**
+                 * Message Action Methods
+                 * 
+                 * These methods handle save, share, and delete operations for assistant messages.
+                 */
+                
+                /**
+                 * Saves a message (placeholder for future backend integration)
+                 * 
+                 * @param {Object} message - The message object to save
+                 */
+                saveMessage(message) {
+                    console.log('Save message:', message.content);
+                    // TODO: Implement backend save functionality
+                    alert('Save functionality will be implemented later');
+                },
+                
+                /**
+                 * Shares a message (placeholder for future backend integration)
+                 * 
+                 * @param {Object} message - The message object to share
+                 */
+                shareMessage(message) {
+                    console.log('Share message:', message.content);
+                    // TODO: Implement backend share functionality
+                    alert('Share functionality will be implemented later');
+                },
+                
+                /**
+                 * Deletes a message from the conversation
+                 * 
+                 * This removes the message from the current conversation's message array.
+                 * The message will no longer be part of the conversation context.
+                 * 
+                 * @param {Object} message - The message object to delete
+                 */
+                deleteMessage(message) {
+                    // Find the index of the message in the current conversation
+                    const messageIndex = this.currentConversation.messages.findIndex(m => m.id === message.id);
+                    
+                    if (messageIndex !== -1) {
+                        // Remove the message from the array
+                        this.currentConversation.messages.splice(messageIndex, 1);
+                        console.log('Message deleted:', message.content);
+                        
+                        // Save the updated conversation to persist the deletion
+                        this.saveChatHistory();
+                    }
+                },
+                
+                /**
+                 * Uses text-to-speech to read aloud an assistant message
+                 * 
+                 * This method uses the Web Speech API to convert the message text to speech.
+                 * It strips HTML tags and markdown formatting for clean speech output.
+                 * 
+                 * @param {Object} message - The message object to speak
+                 */
+                speakMessage(message) {
+                    if (!window.speechSynthesis) {
+                        alert('Text-to-speech is not supported in this browser');
+                        return;
+                    }
+                    // If speech is currently speaking, cancel it and return (toggle off)
+                    if (window.speechSynthesis.speaking) {
+                        window.speechSynthesis.cancel();
+                        this.isSpeaking = false;
+                        this.speakingWordIndex = -1;
+                        this.speakingMessageId = null;
+                        this.speakingText = '';
+                        this.speakingWords = [];
+                        return;
+                    }
+                    // Check for selected text in the window
+                    let selectedText = window.getSelection().toString().trim();
+                    let textToSpeak = selectedText ? selectedText : message.content;
+                    // Clean the text
+                    let cleanText = textToSpeak
+                        .replace(/<[^>]*>/g, '')
+                        .replace(/\*\*(.*?)\*\*/g, '$1')
+                        .replace(/\*(.*?)\*/g, '$1')
+                        .replace(/`(.*?)`/g, '$1')
+                        .replace(/#{1,6}\s/g, '')
+                        .replace(/\n/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    this.speakingText = cleanText;
+                    this.speakingWords = cleanText.split(' ');
+                    this.speakingWordIndex = -1;
+                    this.speakingMessageId = message.id;
+                    const utterance = new SpeechSynthesisUtterance(cleanText);
+                    utterance.rate = 1.5;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 1.0;
+                    const voices = window.speechSynthesis.getVoices();
+                    // Use the default voice (do not set utterance.voice)
+                    utterance.onstart = () => { this.isSpeaking = true; };
+                    utterance.onend = () => { this.isSpeaking = false; this.speakingWordIndex = -1; this.speakingMessageId = null; this.speakingText = ''; this.speakingWords = []; };
+                    utterance.onerror = () => { this.isSpeaking = false; this.speakingWordIndex = -1; this.speakingMessageId = null; this.speakingText = ''; this.speakingWords = []; };
+                    utterance.onboundary = (event) => {
+                        if (event.name === 'word' && this.speakingWords.length > 0) {
+                            let charIndex = event.charIndex;
+                            let runningLength = 0;
+                            for (let i = 0; i < this.speakingWords.length; i++) {
+                                runningLength += this.speakingWords[i].length + 1;
+                                if (charIndex < runningLength) {
+                                    this.speakingWordIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                    };
+                    window.speechSynthesis.speak(utterance);
+                    console.log('Speaking message:', cleanText);
+                },
+                
+                /**
+                 * Automatically resizes the textarea to fit its content
+                 * 
+                 * This method:
+                 * 1. Resets the height to 'auto' to get the natural content height
+                 * 2. Sets the height to the content height, capped at 200px maximum
+                 * 3. Creates a smooth expanding/collapsing effect as user types
+                 * 
+                 * @param {HTMLTextAreaElement} textarea - The textarea element to resize
+                 */
+                autoResize(textarea) {
+                    textarea.style.height = 'auto';                                    // Reset to natural height
+                    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';  // Set to content height, max 200px
+                },
+                
+                /**
+                 * Handles paste events to ensure proper textarea resizing
+                 * 
+                 * When content is pasted, we need to wait for the default paste
+                 * behavior to complete before resizing the textarea. This method
+                 * uses setTimeout with 0 delay to ensure the paste happens first.
+                 * 
+                 * @param {Event} event - The paste event object
+                 */
+                handlePaste(event) {
+                    // Let the default paste behavior complete first
+                    setTimeout(() => {
+                        // Then auto-resize to accommodate the pasted content
+                        this.autoResize(event.target);
+                    }, 0);  // 0 delay ensures this runs after the current execution cycle
+                },
+                highlightedMessage(message) {
+                    // Only highlight if this message is being spoken
+                    if (!this.isSpeaking || this.speakingMessageId !== message.id || !this.speakingText) {
+                        return message.content;
+                    }
+                    let words = this.speakingWords;
+                    return words.map((word, i) =>
+                        `<span class="${i === this.speakingWordIndex ? 'highlighted-word' : ''}">${word}</span>`
+                    ).join(' ');
+                },
+                onMessageTextClick(event, message) {
+                    let target = event.target;
+                    console.log('onMessageTextClick fired', target, message);
+                    if (target.matches('span[data-word-index]')) {
+                        let wordIndex = parseInt(target.getAttribute('data-word-index'));
+                        console.log('Clicked word index:', wordIndex);
+                        if (!isNaN(wordIndex)) {
+                            this.speakMessageFromWord(message, wordIndex);
+                        }
+                    }
+                },
+                onMessagesContainerClick(event) {
+                    let target = event.target;
+                    if (target.matches('span[data-word-index]')) {
+                        let wordIndex = parseInt(target.getAttribute('data-word-index'));
+                        // Find the message element (traverse up to .message)
+                        let messageDiv = target.closest('.message');
+                        let messageId = messageDiv ? messageDiv.getAttribute('data-message-id') : null;
+                        if (messageId) {
+                            // Find the message object in conversations
+                            let message = null;
+                            for (const conv of this.conversations) {
+                                message = (conv.messages || []).find(m => m.id == messageId);
+                                if (message) break;
+                            }
+                            if (message && !isNaN(wordIndex)) {
+                                this.speakMessageFromWord(message, wordIndex);
+                            }
+                        }
+                    }
+                },
+                speakMessageFromWord(message, wordIndex) {
+                    if (!window.speechSynthesis) {
+                        alert('Text-to-speech is not supported in this browser');
+                        return;
+                    }
+                    // Cancel any current speech
+                    if (window.speechSynthesis.speaking) {
+                        window.speechSynthesis.cancel();
+                    }
+                    // Clean and split as before
+                    let cleanText = message.content
+                        .replace(/<[^>]*>/g, '')
+                        .replace(/\*\*(.*?)\*\*/g, '$1')
+                        .replace(/\*(.*?)\*/g, '$1')
+                        .replace(/`(.*?)`/g, '$1')
+                        .replace(/#{1,6}\s/g, '')
+                        .replace(/\n/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    let words = cleanText.split(' ');
+                    this.speakingWords = words;
+                    this.speakingWordIndex = -1;
+                    this.speakingMessageId = message.id;
+                    let textToSpeak = words.slice(wordIndex).join(' ');
+                    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                    utterance.rate = 0.9;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 1.0;
+                    const voices = window.speechSynthesis.getVoices();
+                    // Use the default voice (do not set utterance.voice)
+                    utterance.onstart = () => { this.isSpeaking = true; };
+                    utterance.onend = () => { this.isSpeaking = false; this.speakingWordIndex = -1; this.speakingMessageId = null; };
+                    utterance.onerror = () => { this.isSpeaking = false; this.speakingWordIndex = -1; this.speakingMessageId = null; };
+                    utterance.onboundary = (event) => {
+                        if (event.name === 'word' && this.speakingWords.length > 0) {
+                            let charIndex = event.charIndex;
+                            let runningLength = 0;
+                            for (let i = wordIndex; i < this.speakingWords.length; i++) {
+                                runningLength += this.speakingWords[i].length + 1;
+                                if (charIndex < runningLength) {
+                                    this.speakingWordIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                    };
+                    window.speechSynthesis.speak(utterance);
+                    console.log('Speaking message from word', wordIndex, ':', textToSpeak);
+                }
+            }
+        }
+    </script>
+</body>
+</html> 

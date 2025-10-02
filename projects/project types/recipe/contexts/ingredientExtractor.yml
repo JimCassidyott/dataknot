@@ -1,0 +1,9 @@
+Read the recipe content that follows and extract all ingredients. Return them as a JSON dictionary using keys that follow the pattern "ING-0001" to uniquely identify each ingredient. Only list each ingredient once.
+Guidelines:
+
+If a recipe calls for "Pasta Base (Chickpea Pasta)", list "chickpea pasta" as the ingredient, not "pasta base"
+"Chickpea" alone is not an ingredient since it describes the type of pasta
+Exclude inedible ingredients from the list
+Include only the ingredient name, not quantities or preparation notes
+After creating your list, flag any questionably edible ingredients with a star (*)
+Return only the JSON document with no explanations

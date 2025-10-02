@@ -1,0 +1,7 @@
+Food:
+  - label: "Parse Recipe"
+    link: "/parse-recipe"
+    function: "parseRecipe"
+  - label: "Search Recipes"
+    link: "/search-recipes"
+    function: "searchRecipes"

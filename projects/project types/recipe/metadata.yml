@@ -1,0 +1,42 @@
+name: recipe projects
+description: |
+  A recipe projectis a project where a human and an AI work collaboratively to plan meals.
+version: 1.0.0
+author: Jim Cassidy
+
+features:
+  - Collaborative meal planning
+  - AI-generated recipe suggestions
+  - Nutritional analysis
+  - Shopping list creation
+  - Dietary preference customization
+  - Nutritional optimization.
+  - Can read recipes from a file or from text pasted into the chat interface:
+      - This agent can extract a list of ingredients from a recipe.
+      - This agent separately extracts and maintains the quantities of an ingredient required by the recipe.
+      - This agent can classify ingredients to track:
+          - Flavor profiles
+          - Nutritional profiles
+          - Dietary preferences
+          - Cooking techniques
+          - Food groups
+          - Food categories
+          - allergies
+          - intolerances
+          - preferences
+          - restrictions
+          - storage instructions
+ notes:
+   - the properties that describe ingredients properties that describe ingredients will be used started as relations in Cozodb
+   - these property values will be used to create generators,  transformers and reflections.
+   - generators will be used to classify data and store that information in the database
+   - transformers may will be used to transform data from one format to another.
+   - generators will be used to classify ingredients on a scale that has a range of values.
+   - reflections will be used to reflect on the data and the relationships between the data.
+
+
+
+
+
+
+

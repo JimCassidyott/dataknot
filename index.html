@@ -791,10 +791,10 @@
                         <option value="dolphin-mistral:7b">Dolphin-Mistral 7B (4.1GB)</option>
                         <option value="codellama:latest">Code Llama (3.8GB)</option>
                         <option value="llama2:latest">Llama2 (3.8GB)</option>
-                        <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (Cloud)</option>
+                        <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (Cloud)</option>
                     </select>
                     <button class="settings-button" onclick="configureClaudeApiKey()" 
-                            x-show="selectedModel === 'claude-3-5-sonnet'" 
+                            x-show="selectedModel === 'claude-sonnet-4-5'" 
                             title="Configure Claude API Key">
                         ⚙️
                     </button>
@@ -808,7 +808,7 @@
                             <button class="modal-close" onclick="closeClaudeModal()">&times;</button>
                         </div>
                         <div class="modal-body">
-                            <p>Enter your Claude API key to use Claude 3.5 Sonnet:</p>
+                            <p>Enter your Claude API key to use Claude Sonnet 45:</p>
                             <div class="api-key-input-group">
                                 <input type="password" 
                                        id="claude-api-key-input" 
@@ -1274,7 +1274,7 @@
                     console.log('Model changed to:', this.selectedModel);
                     
                     // Check Claude API key when switching to Claude
-                    if (this.selectedModel === 'claude-3-5-sonnet') {
+                    if (this.selectedModel === 'claude-sonnet-4-5') {
                         this.checkClaudeApiKey();
                     } else {
                         this.showClaudeSettings = false;
@@ -1713,7 +1713,7 @@
                     try {
                         // Get Claude API key if using Claude model
                         let claudeApiKey = null;
-                        if (this.selectedModel === 'claude-3-5-sonnet') {
+                        if (this.selectedModel === 'claude-sonnet-4-5') {
                             claudeApiKey = await window.electronAPI?.invoke('get-claude-api-key') || null;
                         }
                         

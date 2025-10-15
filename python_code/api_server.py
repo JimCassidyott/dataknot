@@ -25,9 +25,13 @@ DEFAULT_MODEL = 'mistral'  # Default AI model to use
 # DEFAULT_MODEL = 'qwen2.5:14b'  # Alternative model (commented out)
 # DEFAULT_MODEL = 'llama3.1:8b'  # Alternative model (commented out)
 
+# # Claude API Configuration
+# CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
+# CLAUDE_MODEL = 'claude-sonnet-4-5-20250929'  # Latest Claude Sonnet 45 model
+
 # Claude API Configuration
 CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
-CLAUDE_MODEL = 'claude-3-5-sonnet-20241022'  # Latest Claude 3.5 Sonnet model
+CLAUDE_MODEL = 'claude-sonnet-4-5-20250929'  # Claude Sonnet 4.5 - smartest model
 
 # No server-side conversation history - stateless design
 
@@ -229,7 +233,7 @@ async def chat(request: ChatRequest, claude_api_key: Optional[str] = Header(None
         logger.info(f"\U0001F916 Processing prompt: {request.prompt[:100]}{'...' if len(request.prompt) > 100 else ''}")
         
         # Route to appropriate API based on model
-        if request.model == 'claude-3-5-sonnet':
+        if request.model == 'claude-sonnet-4-5':
             # Use Claude API
             if not claude_api_key:
                 raise HTTPException(status_code=400, detail="Claude API key required for Claude model")

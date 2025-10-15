@@ -3,9 +3,50 @@ const path = require('path');
 const http = require('http');
 
 /**
- * ChatManager - Handles all business logic for chat history and artifacts
+ * ChatManager - Comprehensive chat history and artifact management system
+ *
+ * ARCHITECTURE OVERVIEW:
+ * This class manages persistent chat conversations for the Recipe Navigator Electron app.
+ * It handles saving/loading conversations to disk, managing artifacts (files generated
+ * during conversations), and communicating with the Python FastAPI server.
+ *
+ * KEY FEATURES:
+ * - Persistent conversation storage in individual folders (chat_1234567890/)
+ * - Artifact management (JSON, text, binary files per conversation)
+ * - Project type classification (chat vs recipe projects)
+ * - DataKnot command processing for project type transitions
+ * - Integration with Python API server via HTTP requests
+ * - Metadata management for conversation properties
+ *
+ * DATA STRUCTURE:
+ * chat_history/
+ * ├── chat_1234567890/
+ * │   ├── conversation.json    # Full conversation data
+ * │   ├── metadata.json        # Conversation properties (title, type, etc.)
+ * │   └── artifacts/           # Generated files during conversation
+ * │       ├── recipe.json
+ * │       └── ingredients.txt
+ * └── chat_1234567891/
+ *     └── ...
+ *
+ * INTEGRATION POINTS:
+ * - Communicates with Python FastAPI server at localhost:8000
+ * - Uses Node.js fs/path modules for file operations
+ * - Integrates with Electron's main process for API key management
+ * - Supports both Ollama (via Python server) and Claude models
  */
 class ChatManager {
+    /**
+     * Constructor - Initialize ChatManager instance
+     *
+     * Sets up core dependencies and configuration:
+     * - fs: Node.js filesystem module for file operations
+     * - path: Node.js path module for cross-platform path handling
+     * - chatHistoryDir: Base directory for storing all chat conversations
+     *
+     * The chatHistoryDir defaults to 'chat_history' in the application root.
+     * All conversation data is stored under this directory in timestamped folders.
+     */
     constructor() {
         this.fs = fs;
         this.path = path;
@@ -14,21 +55,41 @@ class ChatManager {
 
     /**
      * Initialize chat history directory and load saved conversations
+     *
+     * This is the main initialization method called when the application starts.
+     * It performs a complete setup of the chat persistence system:
+     *
+     * 1. Creates the base chat_history directory if it doesn't exist
+     * 2. Ensures all existing conversations have artifacts directories
+     * 3. Initializes project types for legacy conversations
+     * 4. Loads all saved conversations into memory
+     *
+     * @returns {Array} Array of conversation objects sorted by creation time (newest first)
+     * @throws {Error} Logs errors but doesn't throw - returns empty array on failure
+     *
+     * USAGE:
+     * const chatManager = new ChatManager();
+     * const conversations = chatManager.initChatHistory();
+     * // conversations is now populated with all saved chat data
      */
     initChatHistory() {
         try {
-            // Create chat history directory if it doesn't exist
+            // Step 1: Create chat history directory if it doesn't exist
+            // This is the root directory where all conversation folders are stored
             if (!this.fs.existsSync(this.chatHistoryDir)) {
                 this.fs.mkdirSync(this.chatHistoryDir, { recursive: true });
             }
-            
-            // Create artifacts directories for all existing conversations
+
+            // Step 2: Create artifacts directories for all existing conversations
+            // Each conversation needs an 'artifacts' subdirectory for generated files
             this.createArtifactsDirectories();
-            
-            // Initialize default project types for all existing chats
+
+            // Step 3: Initialize default project types for all existing chats
+            // Legacy conversations might not have projectType metadata - this adds it
             this.initializeDefaultProjectTypes();
-            
-            // Load saved conversations
+
+            // Step 4: Load saved conversations from disk into memory
+            // Returns conversations sorted by creation time (newest first)
             return this.loadChatHistory();
         } catch (error) {
             console.error('Error initializing chat history:', error);
@@ -38,6 +99,32 @@ class ChatManager {
 
     /**
      * Save all conversations to chat history folders
+     *
+     * This method performs a complete save operation for all conversations:
+     * 1. Clears existing conversation folders to prevent data conflicts
+     * 2. Creates new folder structure for each conversation
+     * 3. Saves conversation data and metadata
+     * 4. Processes DataKnot commands to update project types
+     *
+     * DATAKNOT COMMAND SYSTEM:
+     * Users can send special commands prefixed with "dataknot:" to control
+     * conversation behavior. Currently supported:
+     * - "dataknot: start recipe" - Changes conversation projectType to "recipe"
+     *
+     * METADATA STRUCTURE:
+     * {
+     *   "id": "1234567890",           // Conversation timestamp ID
+     *   "title": "User's title",      // Conversation title
+     *   "created": "1234567890",      // Creation timestamp
+     *   "lastModified": "1234567890", // Last modification timestamp
+     *   "messageCount": 5,           // Number of messages in conversation
+     *   "version": "1.0",            // Metadata format version
+     *   "projectType": "chat|recipe" // Type of project this conversation represents
+     * }
+     *
+     * @param {Array} conversations - Array of conversation objects to save
+     * @returns {void}
+     * @throws {Error} Logs errors but continues processing other conversations
      */
     saveChatHistory(conversations) {
         try {
@@ -107,31 +194,41 @@ class ChatManager {
                     metadata.projectType = 'chat';
                 }
                 
+                // DATAKNOT COMMAND PROCESSING:
                 // Check if the last user message is a DataKnot command
+                // DataKnot commands allow users to control conversation behavior
+                // Format: "dataknot: <command>"
                 const lastUserMessage = conversation.messages
                     .filter(msg => msg.role === 'user')
                     .pop();
-                
+
                 if (lastUserMessage) {
                     const messageContent = lastUserMessage.content.trim().toLowerCase();
                     console.log(`Checking last user message: "${messageContent}"`);
-                    
+
                     // Check for DataKnot command - extract everything after "dataknot:" and strip spaces
+                    // Example: "dataknot: start recipe" -> command = "start recipe"
                     if (messageContent.startsWith('dataknot:')) {
                         const command = messageContent.substring(9).trim(); // Remove 'dataknot:' prefix and strip spaces
                         console.log(`DataKnot command detected: "${command}"`);
-                        
+
+                        // COMMAND: "start recipe"
+                        // Changes conversation from generic "chat" to "recipe" project type
+                        // This enables recipe-specific features and UI elements
                         if (command === 'start recipe') {
                             console.log(`DataKnot start recipe command confirmed: changing projectType to "recipe" for conversation ${conversation.id}`);
                             console.log(`Original projectType: "${metadata.projectType}"`);
-                            
-                            // Update the projectType to "recipe" and update lastModified
+
+                            // Update the projectType to "recipe" and update lastModified timestamp
+                            // This triggers UI changes and enables recipe-specific functionality
                             metadata.projectType = 'recipe';
                             metadata.lastModified = Date.now();
-                            
+
                             console.log(`Updated projectType to: "${metadata.projectType}"`);
                             console.log(`Updated lastModified to: ${metadata.lastModified}`);
                         } else {
+                            // Log unsupported DataKnot commands for debugging
+                            // Future commands can be added here (e.g., "export", "archive", etc.)
                             console.log(`DataKnot command "${command}" is not "start recipe"`);
                         }
                     }
@@ -462,6 +559,25 @@ class ChatManager {
 
     /**
      * Reset the AI's memory by sending a special reset message
+     *
+     * This method performs a complete AI memory reset by:
+     * 1. Sending a special "SYSTEM" prompt that instructs the AI to forget all previous context
+     * 2. Calling the server's /reset-model endpoint to clear any server-side state
+     *
+     * RESET PROCESS:
+     * - Sends a system message telling the AI to start fresh with no memory
+     * - Uses reset_conversation=true flag in the API request
+     * - Calls /reset-model endpoint to clear any model-specific state
+     * - Both operations are attempted independently (failures in one don't affect the other)
+     *
+     * WHY THIS WORKS:
+     * - The Python API server is stateless, so the main reset happens via the system prompt
+     * - The /reset-model endpoint attempts to restart the Ollama model if needed
+     * - This ensures both client-side conversation context and server-side model state are cleared
+     *
+     * @param {string} model - The AI model to reset (defaults to 'mistral:latest')
+     * @returns {Promise<void>}
+     * @throws {Error} Logs errors but doesn't throw - reset is best-effort
      */
     async resetAIMemory(model = 'mistral:latest') {
         try {
@@ -545,16 +661,59 @@ class ChatManager {
 
     /**
      * Send a message to the FastAPI server
+     *
+     * This is the core method for communicating with the Python API server.
+     * It handles the complete request/response cycle for AI chat interactions.
+     *
+     * API COMMUNICATION ARCHITECTURE:
+     * - Client (Electron) -> HTTP POST to Python FastAPI server (localhost:8000)
+     * - Server routes to appropriate AI backend (Ollama or Claude)
+     * - Response flows back through the same HTTP connection
+     *
+     * REQUEST FORMAT:
+     * POST http://localhost:8000/chat
+     * {
+     *   "prompt": "User message with full conversation context",
+     *   "model": "mistral:latest|claude-sonnet-4-5",
+     *   "reset_conversation": false
+     * }
+     *
+     * CONTEXT BUILDING:
+     * The method builds conversation context by concatenating all previous messages
+     * from the conversationBuffer. Format: "User: message1\n\nAI: response1\n\nUser: message2"
+     * This provides the AI with full conversation history for context-aware responses.
+     *
+     * MODEL SUPPORT:
+     * - Ollama models (default): Communicates via Python server to local Ollama instance
+     * - Claude models: Requires API key, uses Anthropic's Claude API via Python server
+     *
+     * ERROR HANDLING:
+     * - Network errors: Connection failures, timeouts
+     * - API errors: Invalid responses, server errors (5xx)
+     * - JSON parsing errors: Malformed responses from server
+     *
+     * @param {string} messageContent - The user's message to send
+     * @param {Array} conversationBuffer - Array of previous conversation messages
+     * @param {string} model - AI model to use ('mistral:latest', 'claude-sonnet-4-5', etc.)
+     * @param {string|null} claudeApiKey - API key for Claude models (null for Ollama)
+     * @returns {Promise<string>} AI response text
+     * @throws {Error} Throws on network/API errors
      */
     async sendMessageToAPI(messageContent, conversationBuffer = [], model = 'mistral:latest', claudeApiKey = null) {
         try {
-            // Build the full conversation context from the buffer
+            // CONTEXT BUILDING ALGORITHM:
+            // Build the full conversation context from the buffer to provide AI with conversation history
             let fullPrompt = messageContent;
+
             if (conversationBuffer.length > 0) {
-                // Include all messages from the buffer
-                const contextMessages = conversationBuffer.map(msg => 
+                // Include all messages from the buffer to maintain conversation context
+                // Format: "User: message1\n\nAI: response1\n\nUser: message2"
+                // This gives the AI full context of the conversation for coherent responses
+                const contextMessages = conversationBuffer.map(msg =>
                     `${msg.role === 'user' ? 'User' : 'AI'}: ${msg.content}`
                 ).join('\n\n');
+
+                // Append current message to the context
                 fullPrompt = `${contextMessages}\n\nUser: ${messageContent}`;
             }
             
@@ -565,14 +724,19 @@ class ChatManager {
             });
             
             return new Promise((resolve, reject) => {
-                // Prepare headers
+                // HTTP REQUEST PREPARATION:
+                // Prepare standard headers for the API request
                 const headers = {
                     'Content-Type': 'application/json',
                     'Content-Length': Buffer.byteLength(postData)
                 };
-                
+
+                // CLAUDE API AUTHENTICATION:
                 // Add Claude API key header if using Claude model
-                if (model === 'claude-3-5-sonnet' && claudeApiKey) {
+                // The API key is passed from Electron's main process via IPC
+                // Format: headers['claude-api-key'] = 'sk-ant-...' (passed in header)
+                // Note: For security, API keys should never be stored in renderer process
+                if (model === 'claude-sonnet-4-5' && claudeApiKey) {
                     headers['claude-api-key'] = claudeApiKey;
                 }
                 

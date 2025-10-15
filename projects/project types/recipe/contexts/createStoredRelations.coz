@@ -1,0 +1,122 @@
+/**
+ * Create a stored relation in CozoDB based on a set of fields
+ * The first set of fields will be the primary key and the rest will be other fields
+ *
+ * @param relation_name The name of the relation to create
+ * @param fields Array of field objects with name and type properties
+ * @param primary_key_count Number of fields to use as primary key (default: 1)
+ * @returns CozoDB datalog script to create the stored relation
+ */
+function createStoredRelation(relation_name, fieldsgood morning yeah well we'll see how the stretching goes cool , primary_key_count = 1) {
+    // Validate inputs
+    if (!relation_name || !Array.isArray(fields) || fields.length === 0) {
+        throw new Error("Invalid parameters: relation_name and fields array are required");
+    }
+
+    if (primary_key_count < 1 || primary_key_count > fields.length) {
+        throw new Error(`Invalid primary_key_count: must be between 1 and ${fields.length}`);
+    }
+
+    // Separate primary key fields from other fields
+    const primary_key_fields = fields.slice(0, primary_key_count);
+    const other_fields = fields.slice(primary_key_count);
+
+    // Build field definitions for the relation schema
+    const field_definitions = fields.map(field => {
+        const field_name = field.name;
+        const field_type = field.type || 'String'; // Default to String if type not specified
+
+        // Validate field name and type
+        if (!field_name || typeof field_name !== 'string') {
+            throw new Error("Field name must be a non-empty string");
+        }
+
+        return `    ${field_name}: ${field_type}`;
+    });
+
+    // Build primary key definition
+    const primary_key_columns = primary_key_fields.map(field => field.name);
+    const primary_key_definition = `primary_key: [${primary_key_columns.map(name => `"${name}"`).join(', ')}]`;
+
+    // Construct the complete relation definition
+    const schema_definition = [...field_definitions, `    ${primary_key_definition}`].join(',\n');
+
+    // Build column list for the query part
+    const column_list = fields.map(field => field.name).join(', ');
+
+    // Construct the full datalog script
+    const datalog_script = `?[${column_list}] <- []
+:create ${relation_name} {
+${schema_definition}
+}`;
+
+    return datalog_script;
+}
+
+/**
+ * Example usage:
+ *
+ * // Create a relation with 2 primary key fields (id, type) and other fields (name, value, created_at)
+ * const fields = [
+ *   { name: 'id', type: 'Int' },
+ *   { name: 'type', type: 'String' },
+ *   { name: 'name', type: 'String' },
+ *   { name: 'value', type: 'Float' },
+ *   { name: 'created_at', type: 'String' }
+ * ];
+ *
+ * const script = createStoredRelation('my_table', fields, 2);
+ * console.log(script);
+ *
+ * // Alternative with default primary key count (1)
+ * const simple_fields = [
+ *   { name: 'id', type: 'Int' },
+ *   { name: 'data', type: 'String' }
+ * ];
+ *
+ * const simple_script = createStoredRelation('simple_table', simple_fields);
+ * console.log(simple_script);
+ */
+
+// Example 1: Recipe ingredients relation
+const recipe_ingredients_fields = [
+    { name: 'recipe_id', type: 'String' },
+    { name: 'ingredient_id', type: 'String' },
+    { name: 'ingredient_name', type: 'String' },
+    { name: 'quantity', type: 'Float' },
+    { name: 'unit', type: 'String' },
+    { name: 'notes', type: 'String' }
+];
+
+const recipe_ingredients_script = createStoredRelation('recipe_ingredients', recipe_ingredients_fields, 2);
+console.log('Recipe Ingredients Relation:');
+console.log(recipe_ingredients_script);
+console.log();
+
+// Example 2: Simple users relation with single primary key
+const users_fields = [
+    { name: 'user_id', type: 'String' },
+    { name: 'username', type: 'String' },
+    { name: 'email', type: 'String' },
+    { name: 'age', type: 'Int' },
+    { name: 'is_active', type: 'Bool' }
+];
+
+const users_script = createStoredRelation('users', users_fields, 1);
+console.log('Users Relation:');
+console.log(users_script);
+console.log();
+
+// Example 3: Complex relation with multiple primary keys
+const order_items_fields = [
+    { name: 'order_id', type: 'String' },
+    { name: 'item_id', type: 'String' },
+    { name: 'product_name', type: 'String' },
+    { name: 'quantity', type: 'Int' },
+    { name: 'price', type: 'Float' },
+    { name: 'discount', type: 'Float' }
+];
+
+const order_items_script = createStoredRelation('order_items', order_items_fields, 2);
+console.log('Order Items Relation:');
+console.log(order_items_script);
